@@ -102,6 +102,7 @@
 )
 
 // Document Title & TOC placed across both columns on the first page
+// Document Title placed across both columns on the first page
 $if(title)$
 #place(top, scope: "parent", float: true)[
   #align(left)[
@@ -118,33 +119,20 @@ $if(title)$
       #v(8pt)
       #line(length: 100%, stroke: 0.5pt + navy)
     ]
-    $if(toc)$
-    #block(width: 100%, inset: (bottom: 10pt))[
-      #text(fill: navy, weight: "bold", size: 14pt)[Table of Contents]
-      #v(4pt)
-      #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$6$endif$)
-      #v(8pt)
-      #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
-    ]
-    #v(6pt)
-    $endif$
   ]
 ]
-$else$
+$endif$
+
+// Table of Contents in normal flow so it flows to next page if it overflows
 $if(toc)$
-#place(top, scope: "parent", float: true)[
-  #align(left)[
-    #block(width: 100%, inset: (bottom: 10pt))[
-      #text(fill: navy, weight: "bold", size: 14pt)[Table of Contents]
-      #v(4pt)
-      #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$6$endif$)
-      #v(8pt)
-      #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
-    ]
-  ]
+#block(width: 100%, breakable: true, inset: (bottom: 10pt))[
+  #text(fill: navy, weight: "bold", size: 14pt)[Table of Contents]
+  #v(4pt)
+  #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$6$endif$)
+  #v(8pt)
+  #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
 ]
 #v(6pt)
-$endif$
 $endif$
 
 $body$
