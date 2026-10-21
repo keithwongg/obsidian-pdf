@@ -57,36 +57,20 @@
 #let navy = rgb("#002060")
 #let dirty-yellow = rgb("#B58900")
 
-// Heading styles: navy blue, with distinct 8pt step between title, H1 (24pt) and H2 (16pt)
+// Heading styles: navy blue, H1=24pt down to H6=14pt (2pt decrements)
 #show heading: set text(fill: navy, weight: "bold")
 #show heading.where(level: 1): set text(size: 24pt)
-#show heading.where(level: 2): set text(size: 16pt)
-#show heading.where(level: 3): set text(size: 13pt)
-#show heading.where(level: 4): set text(size: 11pt)
-#show heading.where(level: 5): set text(size: 10pt)
-#show heading.where(level: 6): set text(size: 10pt)
+#show heading.where(level: 2): set text(size: 22pt)
+#show heading.where(level: 3): set text(size: 20pt)
+#show heading.where(level: 4): set text(size: 18pt)
+#show heading.where(level: 5): set text(size: 16pt)
+#show heading.where(level: 6): set text(size: 14pt)
 
-// Spacing around headings, H1 always starts on a new page
+// Spacing around headings: compact margin spacing, H1 always starts on a new page
+#show heading: set block(above: 7pt, below: 3pt)
 #show heading.where(level: 1): it => {
   pagebreak(weak: true)
-  v(10pt)
   it
-  v(4pt)
-}
-#show heading.where(level: 2): it => {
-  v(10pt)
-  it
-  v(4pt)
-}
-#show heading.where(level: 3): it => {
-  v(8pt)
-  it
-  v(3pt)
-}
-#show heading.where(level: 4): it => {
-  v(6pt)
-  it
-  v(2pt)
 }
 
 // Bold text: dirty yellow and bold
@@ -138,7 +122,7 @@ $if(title)$
     #block(width: 100%, inset: (bottom: 10pt))[
       #text(fill: navy, weight: "bold", size: 14pt)[Table of Contents]
       #v(4pt)
-      #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$3$endif$)
+      #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$6$endif$)
       #v(8pt)
       #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
     ]
@@ -153,7 +137,7 @@ $if(toc)$
     #block(width: 100%, inset: (bottom: 10pt))[
       #text(fill: navy, weight: "bold", size: 14pt)[Table of Contents]
       #v(4pt)
-      #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$3$endif$)
+      #outline(title: none, indent: auto, depth: $if(toc-depth)$$toc-depth$$else$6$endif$)
       #v(8pt)
       #line(length: 100%, stroke: 0.3pt + rgb("#cccccc"))
     ]

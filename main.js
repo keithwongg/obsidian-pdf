@@ -181,7 +181,7 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
       "--pdf-engine-opt=--root=/",
       `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`,
       "--table-of-contents",
-      "--toc-depth=3",
+      "--toc-depth=6",
       `-V`,
       `title=${file.basename}`,
       `-V`,

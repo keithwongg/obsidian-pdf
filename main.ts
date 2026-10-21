@@ -187,7 +187,7 @@ export default class PandocTypstPlugin extends Plugin {
       '--pdf-engine-opt=--root=/',
       `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`,
       '--table-of-contents',
-      '--toc-depth=3',
+      '--toc-depth=6',
       `-V`, `title=${file.basename}`,
       `-V`, `date=${this.formatTimestamp(new Date())}`
     ];
