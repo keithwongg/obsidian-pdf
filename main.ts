@@ -138,6 +138,11 @@ export default class PandocTypstPlugin extends Plugin {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
+  private formatFileTimestamp(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  }
+
   async exportCurrentNote(file: TFile) {
     new Notice(`Exporting "${file.basename}" to PDF...`);
 
@@ -149,7 +154,10 @@ export default class PandocTypstPlugin extends Plugin {
       await this.app.vault.createFolder(exportFolder);
     }
 
-    const outputPdfVaultRel = path.join(exportFolder, `${file.basename}.pdf`);
+    const safeBaseName = file.basename.replace(/\s+/g, '_');
+    const fileTimestamp = this.formatFileTimestamp(new Date());
+    const outputFileName = `${safeBaseName}_${fileTimestamp}.pdf`;
+    const outputPdfVaultRel = path.join(exportFolder, outputFileName);
     const outputPdfFullPath = path.join(vaultBase, outputPdfVaultRel);
     const templatePath = this.getTemplatePath();
 

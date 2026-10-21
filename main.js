@@ -142,6 +142,10 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
+  formatFileTimestamp(d) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  }
   async exportCurrentNote(file) {
     new import_obsidian.Notice(`Exporting "${file.basename}" to PDF...`);
     const vaultBase = this.getVaultBasePath();
@@ -149,7 +153,10 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     if (!await this.app.vault.adapter.exists(exportFolder)) {
       await this.app.vault.createFolder(exportFolder);
     }
-    const outputPdfVaultRel = path.join(exportFolder, `${file.basename}.pdf`);
+    const safeBaseName = file.basename.replace(/\s+/g, "_");
+    const fileTimestamp = this.formatFileTimestamp(/* @__PURE__ */ new Date());
+    const outputFileName = `${safeBaseName}_${fileTimestamp}.pdf`;
+    const outputPdfVaultRel = path.join(exportFolder, outputFileName);
     const outputPdfFullPath = path.join(vaultBase, outputPdfVaultRel);
     const templatePath = this.getTemplatePath();
     if (!fs.existsSync(templatePath)) {
