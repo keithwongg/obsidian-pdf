@@ -29,6 +29,14 @@
 
 #set par(justify: true, leading: 0.6em)
 
+// Pandoc compatibility helpers
+#let horizontalRule = line(start: (0%,0%), end: (100%,0%), stroke: 0.5pt + rgb("#cccccc"))
+#let divider() = horizontalRule
+#set terms(hanging-indent: 1.5em)
+#set table(inset: 6pt, stroke: none)
+#show figure.where(kind: table): set figure.caption(position: top)
+#show figure.where(kind: image): set figure.caption(position: bottom)
+
 // Palette definitions
 #let navy = rgb("#002060")
 #let dirty-yellow = rgb("#B58900")

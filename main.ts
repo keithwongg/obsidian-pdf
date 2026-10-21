@@ -19,8 +19,36 @@ const DEFAULT_SETTINGS: PandocTypstSettings = {
 };
 
 export function preprocessMarkdown(content: string, resolveVaultFile: (link: string) => string | null): string {
+  let frontmatter = '';
+  let body = content;
+
+  // Check if note starts with YAML frontmatter
+  if (content.startsWith('---')) {
+    const endIdx = content.slice(3).indexOf('\n---');
+    if (endIdx !== -1) {
+      const candidate = content.slice(3, 3 + endIdx);
+      const lines = candidate.split('\n').filter(l => l.trim().length > 0);
+      const isLikelyYaml = lines.length === 0 || lines.every(l => {
+        const trimmed = l.trim();
+        return trimmed.startsWith('#') || /^[a-zA-Z0-9_-]+(\[[^\]]*\])?\s*:/.test(trimmed) || /^\s*-\s+/.test(l);
+      });
+
+      if (isLikelyYaml) {
+        // Sanitize any unquoted values starting with * or & in frontmatter
+        const sanitizedLines = lines.map(line => {
+          return line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+        });
+        frontmatter = `---\n${sanitizedLines.join('\n')}\n---\n`;
+        body = content.slice(3 + endIdx + 4);
+      }
+    }
+  }
+
+  // Convert horizontal rules in body from --- to *** so Pandoc never treats them as YAML blocks
+  body = body.replace(/^([ \t]*-{3,}[ \t]*)$/gm, '***');
+
   // Convert Obsidian image embeds ![[image.ext|size]] or ![[image.ext]] -> ![alt](path)
-  let processed = content.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
+  body = body.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     const cleanLink = linkPath.trim();
     const resolvedPath = resolveVaultFile(cleanLink);
     if (!resolvedPath) return match;
@@ -32,11 +60,11 @@ export function preprocessMarkdown(content: string, resolveVaultFile: (link: str
   });
 
   // Convert Obsidian wikilinks [[link|alias]] -> alias or [[link]] -> link
-  processed = processed.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
+  body = body.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     return alias ? alias.trim() : linkPath.trim();
   });
 
-  return processed;
+  return frontmatter + body;
 }
 
 export default class PandocTypstPlugin extends Plugin {
@@ -149,8 +177,8 @@ export default class PandocTypstPlugin extends Plugin {
       `--template=${templatePath}`,
       '--table-of-contents',
       '--toc-depth=3',
-      `-M`, `title=${file.basename}`,
-      `-M`, `date=${this.formatTimestamp(new Date())}`
+      `-V`, `title=${file.basename}`,
+      `-V`, `date=${this.formatTimestamp(new Date())}`
     ];
 
     const env = this.getProcessEnv();

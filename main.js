@@ -45,7 +45,31 @@ var DEFAULT_SETTINGS = {
   customTemplatePath: ""
 };
 function preprocessMarkdown(content, resolveVaultFile) {
-  let processed = content.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
+  let frontmatter = "";
+  let body = content;
+  if (content.startsWith("---")) {
+    const endIdx = content.slice(3).indexOf("\n---");
+    if (endIdx !== -1) {
+      const candidate = content.slice(3, 3 + endIdx);
+      const lines = candidate.split("\n").filter((l) => l.trim().length > 0);
+      const isLikelyYaml = lines.length === 0 || lines.every((l) => {
+        const trimmed = l.trim();
+        return trimmed.startsWith("#") || /^[a-zA-Z0-9_-]+(\[[^\]]*\])?\s*:/.test(trimmed) || /^\s*-\s+/.test(l);
+      });
+      if (isLikelyYaml) {
+        const sanitizedLines = lines.map((line) => {
+          return line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+        });
+        frontmatter = `---
+${sanitizedLines.join("\n")}
+---
+`;
+        body = content.slice(3 + endIdx + 4);
+      }
+    }
+  }
+  body = body.replace(/^([ \t]*-{3,}[ \t]*)$/gm, "***");
+  body = body.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     const cleanLink = linkPath.trim();
     const resolvedPath = resolveVaultFile(cleanLink);
     if (!resolvedPath) return match;
@@ -55,10 +79,10 @@ function preprocessMarkdown(content, resolveVaultFile) {
     }
     return `![${altText}](${resolvedPath})`;
   });
-  processed = processed.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
+  body = body.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     return alias ? alias.trim() : linkPath.trim();
   });
-  return processed;
+  return frontmatter + body;
 }
 var PandocTypstPlugin = class extends import_obsidian.Plugin {
   async onload() {
@@ -148,9 +172,9 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
       `--template=${templatePath}`,
       "--table-of-contents",
       "--toc-depth=3",
-      `-M`,
+      `-V`,
       `title=${file.basename}`,
-      `-M`,
+      `-V`,
       `date=${this.formatTimestamp(/* @__PURE__ */ new Date())}`
     ];
     const env = this.getProcessEnv();

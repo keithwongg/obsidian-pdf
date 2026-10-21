@@ -5,8 +5,36 @@ const assert = require('assert');
 
 // 1. Test markdown preprocessing logic
 function preprocessMarkdown(content, resolveVaultPath = (p) => `/mock/vault/${p}`) {
+  let frontmatter = '';
+  let body = content;
+
+  // Check if note starts with YAML frontmatter
+  if (content.startsWith('---')) {
+    const endIdx = content.slice(3).indexOf('\n---');
+    if (endIdx !== -1) {
+      const candidate = content.slice(3, 3 + endIdx);
+      const lines = candidate.split('\n').filter(l => l.trim().length > 0);
+      const isLikelyYaml = lines.length === 0 || lines.every(l => {
+        const trimmed = l.trim();
+        return trimmed.startsWith('#') || /^[a-zA-Z0-9_-]+(\[[^\]]*\])?\s*:/.test(trimmed) || /^\s*-\s+/.test(l);
+      });
+
+      if (isLikelyYaml) {
+        // Sanitize any unquoted values starting with * or & in frontmatter
+        const sanitizedLines = lines.map(line => {
+          return line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+        });
+        frontmatter = `---\n${sanitizedLines.join('\n')}\n---\n`;
+        body = content.slice(3 + endIdx + 4);
+      }
+    }
+  }
+
+  // Convert horizontal rules in body from --- to *** so Pandoc never treats them as YAML blocks
+  body = body.replace(/^([ \t]*-{3,}[ \t]*)$/gm, '***');
+
   // Convert Obsidian image embeds ![[image.ext|size]] or ![[image.ext]] -> ![alt](path)
-  let processed = content.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
+  body = body.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     const resolvedPath = resolveVaultPath(linkPath.trim());
     let altText = path.basename(linkPath.trim());
     if (alias && !/^\d+(x\d+)?$/.test(alias.trim())) {
@@ -16,11 +44,11 @@ function preprocessMarkdown(content, resolveVaultPath = (p) => `/mock/vault/${p}
   });
 
   // Convert Obsidian wikilinks [[link|alias]] -> alias or [[link]] -> link
-  processed = processed.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
+  body = body.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     return alias ? alias.trim() : linkPath.trim();
   });
 
-  return processed;
+  return frontmatter + body;
 }
 
 // Test assertions for preprocessing
@@ -38,6 +66,18 @@ Here is an image: ![screenshot.png](/mock/vault/screenshot.png) and sized: ![pho
 `;
 
 assert.strictEqual(preprocessMarkdown(sampleInput).trim(), expectedOutput.trim());
+
+// Test note with dividers and bold/italic that previously crashed Pandoc with YAML alias error
+const problematicNote = `
+---
+**Note:** Some summary
+---
+* Bullet 1
+* Bullet 2
+`;
+const processedProblemNote = preprocessMarkdown(problematicNote);
+assert(!processedProblemNote.includes('---'), 'Body dividers should be converted to ***');
+assert(processedProblemNote.includes('***'), 'Should contain *** dividers');
 console.log('✓ Markdown preprocessing assertions passed.');
 
 // 2. Test Typst template compilation
@@ -108,6 +148,46 @@ try {
 } finally {
   if (fs.existsSync(testTypstFile)) fs.unlinkSync(testTypstFile);
   if (fs.existsSync(testPdfFile)) fs.unlinkSync(testPdfFile);
+}
+
+// 3. End-to-end test using Pandoc if installed
+const pandocBin = '/usr/local/bin/pandoc';
+if (fs.existsSync(pandocBin)) {
+  console.log('Testing End-to-End Pandoc + Typst pipeline with tricky dividers and lists...');
+  const trickyInput = `
+# Edge Case Document
+---
+**Note:** A summary that used to fail with alias error.
+---
+* Bullet point 1
+* Bullet point 2 with *italic* and **bold**
+
+Check [[Internal Note]] and ![[image.png|300]].
+`;
+  const preprocessed = preprocessMarkdown(trickyInput);
+  const tempInput = path.join(__dirname, 'test_e2e_input.md');
+  const tempOutput = path.join(__dirname, 'test_e2e_output.pdf');
+  const templatePath = path.join(__dirname, 'template.typ');
+
+  fs.writeFileSync(tempInput, preprocessed, 'utf8');
+  try {
+    execFileSync(pandocBin, [
+      tempInput,
+      '-o', tempOutput,
+      '--pdf-engine=/usr/local/bin/typst',
+      `--template=${templatePath}`,
+      '--table-of-contents',
+      '-V', 'title=Edge Case Document',
+      '-V', 'date=2026-10-21 17:40:00'
+    ]);
+    assert(fs.existsSync(tempOutput), 'E2E PDF should exist');
+    const e2eStats = fs.statSync(tempOutput);
+    assert(e2eStats.size > 1000, 'E2E PDF size should be > 1KB');
+    console.log(`✓ End-to-end Pandoc + Typst compile passed! Size: ${e2eStats.size} bytes`);
+  } finally {
+    if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
+    if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
+  }
 }
 
 console.log('All checks passed successfully!');
