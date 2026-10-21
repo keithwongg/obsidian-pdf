@@ -170,11 +170,14 @@ export default class PandocTypstPlugin extends Plugin {
     const tempMdPath = path.join(os.tmpdir(), `obsidian-export-${Date.now()}-${file.basename}.md`);
     await fs.promises.writeFile(tempMdPath, processedContent, 'utf8');
 
+    const noteDir = path.join(vaultBase, path.dirname(file.path));
     const pandocArgs = [
       tempMdPath,
       '-o', outputPdfFullPath,
       `--pdf-engine=${this.settings.typstPath}`,
       `--template=${templatePath}`,
+      '--pdf-engine-opt=--root=/',
+      `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`,
       '--table-of-contents',
       '--toc-depth=3',
       `-V`, `title=${file.basename}`,
@@ -182,8 +185,9 @@ export default class PandocTypstPlugin extends Plugin {
     ];
 
     const env = this.getProcessEnv();
+    const cwd = vaultBase && fs.existsSync(vaultBase) ? vaultBase : os.tmpdir();
 
-    execFile(this.settings.pandocPath, pandocArgs, { env }, async (error, stdout, stderr) => {
+    execFile(this.settings.pandocPath, pandocArgs, { env, cwd }, async (error, stdout, stderr) => {
       // Clean up temporary markdown file
       try {
         if (fs.existsSync(tempMdPath)) await fs.promises.unlink(tempMdPath);

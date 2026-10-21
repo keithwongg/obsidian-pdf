@@ -164,12 +164,15 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     const processedContent = preprocessMarkdown(rawContent, resolveVaultFile);
     const tempMdPath = path.join(os.tmpdir(), `obsidian-export-${Date.now()}-${file.basename}.md`);
     await fs.promises.writeFile(tempMdPath, processedContent, "utf8");
+    const noteDir = path.join(vaultBase, path.dirname(file.path));
     const pandocArgs = [
       tempMdPath,
       "-o",
       outputPdfFullPath,
       `--pdf-engine=${this.settings.typstPath}`,
       `--template=${templatePath}`,
+      "--pdf-engine-opt=--root=/",
+      `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`,
       "--table-of-contents",
       "--toc-depth=3",
       `-V`,
@@ -178,7 +181,8 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
       `date=${this.formatTimestamp(/* @__PURE__ */ new Date())}`
     ];
     const env = this.getProcessEnv();
-    (0, import_child_process.execFile)(this.settings.pandocPath, pandocArgs, { env }, async (error, stdout, stderr) => {
+    const cwd = vaultBase && fs.existsSync(vaultBase) ? vaultBase : os.tmpdir();
+    (0, import_child_process.execFile)(this.settings.pandocPath, pandocArgs, { env, cwd }, async (error, stdout, stderr) => {
       try {
         if (fs.existsSync(tempMdPath)) await fs.promises.unlink(tempMdPath);
       } catch (e) {
