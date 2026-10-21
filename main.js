@@ -40,6 +40,7 @@ var os = __toESM(require("os"));
 var import_child_process = require("child_process");
 var DEFAULT_SETTINGS = {
   exportFolder: "exports",
+  templateChoice: "two-column",
   pandocPath: "pandoc",
   typstPath: "typst",
   customTemplatePath: ""
@@ -114,15 +115,19 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     return adapter.basePath || (typeof adapter.getFullPath === "function" ? adapter.getFullPath("") : "");
   }
   getTemplatePath() {
-    if (this.settings.customTemplatePath && fs.existsSync(this.settings.customTemplatePath)) {
-      return this.settings.customTemplatePath;
+    if (this.settings.templateChoice === "custom" && this.settings.customTemplatePath?.trim()) {
+      const customPath = this.settings.customTemplatePath.trim();
+      if (fs.existsSync(customPath)) {
+        return customPath;
+      }
     }
+    const templateFileName = this.settings.templateChoice === "single-column" ? "template-single.typ" : "template.typ";
     const vaultBase = this.getVaultBasePath();
-    const pluginTemplate = path.join(vaultBase, this.app.vault.configDir, "plugins", this.manifest.id, "template.typ");
+    const pluginTemplate = path.join(vaultBase, this.app.vault.configDir, "plugins", this.manifest.id, templateFileName);
     if (fs.existsSync(pluginTemplate)) {
       return pluginTemplate;
     }
-    const localTemplate = path.join(__dirname, "template.typ");
+    const localTemplate = path.join(__dirname, templateFileName);
     if (fs.existsSync(localTemplate)) {
       return localTemplate;
     }
@@ -213,6 +218,10 @@ var PandocTypstSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "Pandoc Typst PDF Export Settings" });
+    new import_obsidian.Setting(containerEl).setName("Template Layout").setDesc("Select the PDF template layout to use for exports").addDropdown((dropdown) => dropdown.addOption("two-column", "Two Column (Academic)").addOption("single-column", "Single Column").addOption("custom", "Custom Template File").setValue(this.plugin.settings.templateChoice || "two-column").onChange(async (value) => {
+      this.plugin.settings.templateChoice = value;
+      await this.plugin.saveSettings();
+    }));
     new import_obsidian.Setting(containerEl).setName("Export Folder").setDesc("Folder inside your vault where exported PDFs will be saved").addText((text) => text.setPlaceholder("exports").setValue(this.plugin.settings.exportFolder).onChange(async (value) => {
       this.plugin.settings.exportFolder = value;
       await this.plugin.saveSettings();

@@ -6,6 +6,7 @@ import { execFile } from 'child_process';
 
 interface PandocTypstSettings {
   exportFolder: string;
+  templateChoice: 'two-column' | 'single-column' | 'custom';
   pandocPath: string;
   typstPath: string;
   customTemplatePath: string;
@@ -13,6 +14,7 @@ interface PandocTypstSettings {
 
 const DEFAULT_SETTINGS: PandocTypstSettings = {
   exportFolder: 'exports',
+  templateChoice: 'two-column',
   pandocPath: 'pandoc',
   typstPath: 'typst',
   customTemplatePath: ''
@@ -106,16 +108,24 @@ export default class PandocTypstPlugin extends Plugin {
   }
 
   private getTemplatePath(): string {
-    if (this.settings.customTemplatePath && fs.existsSync(this.settings.customTemplatePath)) {
-      return this.settings.customTemplatePath;
+    if (this.settings.templateChoice === 'custom' && this.settings.customTemplatePath?.trim()) {
+      const customPath = this.settings.customTemplatePath.trim();
+      if (fs.existsSync(customPath)) {
+        return customPath;
+      }
     }
+
+    const templateFileName = this.settings.templateChoice === 'single-column'
+      ? 'template-single.typ'
+      : 'template.typ';
+
     const vaultBase = this.getVaultBasePath();
-    const pluginTemplate = path.join(vaultBase, this.app.vault.configDir, 'plugins', this.manifest.id, 'template.typ');
+    const pluginTemplate = path.join(vaultBase, this.app.vault.configDir, 'plugins', this.manifest.id, templateFileName);
     if (fs.existsSync(pluginTemplate)) {
       return pluginTemplate;
     }
     // Fallback: check current directory or bundled template relative to this file
-    const localTemplate = path.join(__dirname, 'template.typ');
+    const localTemplate = path.join(__dirname, templateFileName);
     if (fs.existsSync(localTemplate)) {
       return localTemplate;
     }
@@ -227,6 +237,19 @@ class PandocTypstSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl('h2', { text: 'Pandoc Typst PDF Export Settings' });
+
+    new Setting(containerEl)
+      .setName('Template Layout')
+      .setDesc('Select the PDF template layout to use for exports')
+      .addDropdown(dropdown => dropdown
+        .addOption('two-column', 'Two Column (Academic)')
+        .addOption('single-column', 'Single Column')
+        .addOption('custom', 'Custom Template File')
+        .setValue(this.plugin.settings.templateChoice || 'two-column')
+        .onChange(async (value: 'two-column' | 'single-column' | 'custom') => {
+          this.plugin.settings.templateChoice = value;
+          await this.plugin.saveSettings();
+        }));
 
     new Setting(containerEl)
       .setName('Export Folder')

@@ -11,17 +11,23 @@
   ),
   fill: rgb("#ffffff"),
   footer: context {
-    set text(size: 8pt, fill: rgb("#666666"))
-    let h1-list = query(selector(heading.where(level: 1)).before(here()))
-    let h1-title = if h1-list.len() > 0 {
-      h1-list.last().body
+    let current-page = here().page()
+    let page-h1s = query(selector(heading.where(level: 1))).filter(h => h.location().page() == current-page)
+    let h1-label = if page-h1s.len() > 0 {
+      page-h1s.map(h => h.body).join(", ")
     } else {
-      "$if(title)$$title$$endif$"
+      let prev-h1s = query(selector(heading.where(level: 1)).before(here()))
+      if prev-h1s.len() > 0 {
+        prev-h1s.last().body
+      } else {
+        "$if(title)$$title$$endif$"
+      }
     }
+    set text(size: 8pt, fill: rgb("#666666"))
     grid(
       columns: (1fr, 1fr),
       align: (left + horizon, right + horizon),
-      [#h1-title | $if(date)$$date$$else$#datetime.today().display()$endif$],
+      [#h1-label | $if(date)$$date$$else$#datetime.today().display()$endif$],
       [#counter(page).display("1")]
     )
   }
@@ -41,12 +47,14 @@
 #let divider() = horizontalRule
 #set terms(hanging-indent: 1.5em)
 
-// Table styling: left-aligned tables and cells
+// Table styling: left-aligned table, figure container, header and cells
 #set table(inset: 6pt, stroke: none, align: left)
+#show table: set align(left)
+#show table.cell: it => align(left)[#it.body]
 #show figure.where(kind: table): set align(left)
 #show figure.where(kind: table): it => {
   set align(left)
-  show align.where(alignment: center): a => a.body
+  show align.where(alignment: center): a => align(left)[#a.body]
   it
 }
 #show figure.where(kind: table): set figure.caption(position: top)
@@ -57,20 +65,45 @@
 #let navy = rgb("#002060")
 #let dirty-yellow = rgb("#B58900")
 
-// Heading styles: navy blue, H1=24pt down to H6=14pt (2pt decrements)
+// Heading styles: navy blue, with 8pt decrements down to body text size (10pt)
 #show heading: set text(fill: navy, weight: "bold")
 #show heading.where(level: 1): set text(size: 24pt)
-#show heading.where(level: 2): set text(size: 22pt)
-#show heading.where(level: 3): set text(size: 20pt)
-#show heading.where(level: 4): set text(size: 18pt)
-#show heading.where(level: 5): set text(size: 16pt)
-#show heading.where(level: 6): set text(size: 14pt)
+#show heading.where(level: 2): set text(size: 16pt)
+#show heading.where(level: 3): set text(size: 10pt)
+#show heading.where(level: 4): set text(size: 10pt)
+#show heading.where(level: 5): set text(size: 10pt)
+#show heading.where(level: 6): set text(size: 10pt)
 
-// Spacing around headings: compact margin spacing, H1 always starts on a new page
-#show heading: set block(above: 7pt, below: 3pt)
+// Spacing around headings (restored to previous margin spacing)
 #show heading.where(level: 1): it => {
-  pagebreak(weak: true)
+  v(10pt)
   it
+  v(4pt)
+}
+#show heading.where(level: 2): it => {
+  v(10pt)
+  it
+  v(4pt)
+}
+#show heading.where(level: 3): it => {
+  v(8pt)
+  it
+  v(3pt)
+}
+#show heading.where(level: 4): it => {
+  v(6pt)
+  it
+  v(2pt)
+}
+#show heading.where(level: 5): it => {
+  v(4pt)
+  it
+  v(2pt)
+}
+#show heading.where(level: 6): it => {
+  v(4pt)
+  it
+  v(2pt)
 }
 
 // Bold text: dirty yellow and bold
@@ -101,7 +134,6 @@
   text(fill: rgb("#333333"), style: "italic")[#it.body]
 )
 
-// Document Title & TOC placed across both columns on the first page
 // Document Title placed across both columns on the first page
 $if(title)$
 #place(top, scope: "parent", float: true)[

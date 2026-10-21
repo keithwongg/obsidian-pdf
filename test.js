@@ -183,7 +183,25 @@ Check [[Internal Note]] and ![[image.png|300]].
     assert(fs.existsSync(tempOutput), 'E2E PDF should exist');
     const e2eStats = fs.statSync(tempOutput);
     assert(e2eStats.size > 1000, 'E2E PDF size should be > 1KB');
-    console.log(`✓ End-to-end Pandoc + Typst compile passed! Size: ${e2eStats.size} bytes`);
+    console.log(`✓ End-to-end Pandoc + Typst 2-column compile passed! Size: ${e2eStats.size} bytes`);
+
+    // Also test single-column template
+    const templateSinglePath = path.join(__dirname, 'template-single.typ');
+    const tempSingleOutput = path.join(__dirname, 'test_e2e_single.pdf');
+    execFileSync(pandocBin, [
+      tempInput,
+      '-o', tempSingleOutput,
+      '--pdf-engine=/usr/local/bin/typst',
+      `--template=${templateSinglePath}`,
+      '--table-of-contents',
+      '-V', 'title=Edge Case Document',
+      '-V', 'date=2026-10-21 17:40:00'
+    ]);
+    assert(fs.existsSync(tempSingleOutput), 'Single column E2E PDF should exist');
+    const singleStats = fs.statSync(tempSingleOutput);
+    assert(singleStats.size > 1000, 'Single column PDF size should be > 1KB');
+    console.log(`✓ End-to-end Pandoc + Typst single-column compile passed! Size: ${singleStats.size} bytes`);
+    if (fs.existsSync(tempSingleOutput)) fs.unlinkSync(tempSingleOutput);
   } finally {
     if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
     if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
