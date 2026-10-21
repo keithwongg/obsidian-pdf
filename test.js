@@ -162,6 +162,11 @@ if (fs.existsSync(pandocBin)) {
 * Bullet point 1
 * Bullet point 2 with *italic* and **bold**
 
+| Target AWS Service    | Route Taken                    | Goes through NAT? | Why?                                                                                                                                                                                                                                                                      |
+| --------------------- | ------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **RDS PostgreSQL 16** | **Direct Private VPC Routing** | ❌ **No**          | RDS is deployed directly inside the VPC **private subnets** (\`terraform-aws-eks/main.tf:L197-L204\`). Pods communicate over internal IP on port 5432 directly.                                                                                                             |
+| **Amazon S3**         | **S3 VPC Gateway Endpoint**    | ❌ **No**          | Configured via \`aws_vpc_endpoint.s3\` (\`terraform-aws-eks/main.tf:L186-L195\`). AWS route tables route S3 prefix traffic across the internal AWS private network for free, completely bypassing the NAT Gateway.                                                            |
+
 Check [[Internal Note]] and ![[image.png|300]].
 `;
   const preprocessed = preprocessMarkdown(trickyInput);

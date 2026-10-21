@@ -53,22 +53,50 @@
   inset: (x: 4pt, y: 3.5pt),
   align: left
 )
-#show table: it => {
-  let cols = it.columns
-  let is-all-auto = if type(cols) == int {
-    true
+#let balance-columns(cols) = {
+  if type(cols) == int {
+    (1fr,) * cols
   } else if type(cols) == array {
-    cols.all(c => c == auto)
+    let n = cols.len()
+    if n == 0 { cols }
+    else if cols.all(c => c == auto) {
+      (1fr,) * n
+    } else {
+      let is-ratio-like = cols.all(c => type(c) == ratio or type(c) == relative)
+      if is-ratio-like {
+        let ratios = cols.map(c => if type(c) == relative { c.ratio } else { c })
+        // Minimum share: at least 70% of equal share to prevent squishing
+        let min-ratio = (0.7 / n) * 100%
+        let below = ratios.filter(r => r < min-ratio)
+        if below.len() > 0 and below.len() < n {
+          let fixed-total = below.len() * min-ratio
+          let remaining = 100% - fixed-total
+          let above = ratios.filter(r => r >= min-ratio)
+          let above-sum = above.sum()
+          ratios.map(r => {
+            if r < min-ratio { min-ratio }
+            else { (r / above-sum) * remaining }
+          })
+        } else {
+          cols
+        }
+      } else {
+        cols
+      }
+    }
   } else {
-    false
+    cols
   }
-  if is-all-auto {
-    let num-cols = if type(cols) == int { cols } else { cols.len() }
+}
+
+#show table: it => {
+  let new-cols = balance-columns(it.columns)
+  if new-cols != it.columns {
     let fields = it.fields()
     let _ = fields.remove("columns")
     let _ = fields.remove("children")
     table(
-      columns: (1fr,) * num-cols,
+      columns: new-cols,
       ..fields,
       ..it.children
     )
