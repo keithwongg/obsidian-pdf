@@ -27,7 +27,7 @@
   lang: "$if(lang)$$lang$$else$en$endif$"
 )
 
-#set par(justify: true, leading: 0.6em)
+#set par(justify: false, leading: 0.6em)
 
 // Pandoc compatibility helpers
 #let horizontalRule = line(start: (0%,0%), end: (100%,0%), stroke: 0.5pt + rgb("#cccccc"))
@@ -41,14 +41,14 @@
 #let navy = rgb("#002060")
 #let dirty-yellow = rgb("#B58900")
 
-// Heading styles: navy blue, H1=24pt, decreasing by 2pt per level
+// Heading styles: navy blue, with distinct 8pt step between title, H1 (24pt) and H2 (16pt)
 #show heading: set text(fill: navy, weight: "bold")
 #show heading.where(level: 1): set text(size: 24pt)
-#show heading.where(level: 2): set text(size: 22pt)
-#show heading.where(level: 3): set text(size: 20pt)
-#show heading.where(level: 4): set text(size: 18pt)
-#show heading.where(level: 5): set text(size: 16pt)
-#show heading.where(level: 6): set text(size: 14pt)
+#show heading.where(level: 2): set text(size: 16pt)
+#show heading.where(level: 3): set text(size: 13pt)
+#show heading.where(level: 4): set text(size: 11pt)
+#show heading.where(level: 5): set text(size: 10pt)
+#show heading.where(level: 6): set text(size: 10pt)
 
 // Spacing around headings
 #show heading: it => {
@@ -86,7 +86,7 @@
 
 // Document Title across both columns on the first page
 $if(title)$
-#align(center)[
+#align(left)[
   #block(width: 100%, below: 14pt)[
     #text(size: 32pt, weight: "bold", fill: navy)[$title$]
     $if(subtitle)$
