@@ -1,0 +1,9 @@
+{
+  "id": "pandoc-typst-export-pdf",
+  "name": "Pandoc Typst Export PDF",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Export Obsidian notes to clean 2-column academic PDFs using Pandoc and Typst.",
+  "author": "Keith Wong",
+  "isDesktopOnly": true
+}

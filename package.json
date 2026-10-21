@@ -1,0 +1,24 @@
+{
+  "name": "obsidian-pandoc-typst-pdf",
+  "version": "1.0.0",
+  "description": "Export Obsidian notes to clean 2-column academic PDFs using Pandoc and Typst",
+  "main": "main.js",
+  "scripts": {
+    "build": "esbuild main.ts --bundle --external:obsidian --external:electron --format=cjs --platform=node --target=es2020 --outfile=main.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "pandoc",
+    "typst",
+    "pdf"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.7.2",
+    "typescript": "^5.7.0"
+  }
+}
