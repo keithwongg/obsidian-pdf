@@ -47,10 +47,41 @@
 #let divider() = horizontalRule
 #set terms(hanging-indent: 1.5em)
 
-// Table styling: left-aligned table, figure container, header and cells
-#set table(inset: 6pt, stroke: none, align: left)
-#show table: set align(left)
-#show table.cell: it => align(left)[#it.body]
+// Table styling: left-aligned table, figure container, cell padding & borders
+#set table(
+  stroke: 0.5pt + rgb("#d0d7de"),
+  inset: (x: 4pt, y: 3.5pt),
+  align: left
+)
+#show table: it => {
+  let cols = it.columns
+  let is-all-auto = if type(cols) == int {
+    true
+  } else if type(cols) == array {
+    cols.all(c => c == auto)
+  } else {
+    false
+  }
+  if is-all-auto {
+    let num-cols = if type(cols) == int { cols } else { cols.len() }
+    let fields = it.fields()
+    let _ = fields.remove("columns")
+    let _ = fields.remove("children")
+    table(
+      columns: (1fr,) * num-cols,
+      ..fields,
+      ..it.children
+    )
+  } else {
+    it
+  }
+}
+#show table.cell: it => {
+  set align(left)
+  show regex("([_./\\\\:\\-@?&=+~%,;()\\[\\]{}|])"): m => m + sym.zws
+  show regex("([^\\s\\u{200B}]{8})"): m => m + sym.zws
+  it
+}
 #show figure.where(kind: table): set align(left)
 #show figure.where(kind: table): it => {
   set align(left)
@@ -110,7 +141,12 @@
 #show strong: set text(fill: dirty-yellow)
 
 // Code styling: hyphenate and wrap within column
-#show raw: set text(font: ("DejaVu Sans Mono", "Courier New"), size: 8.5pt, hyphenate: auto)
+#show raw: set text(font: ("DejaVu Sans Mono", "Courier New"), size: 8.5pt)
+#show raw: it => {
+  show regex("([_./\\\\:\\-@?&=+~%,;()\\[\\]{}|])"): m => m + sym.zws
+  show regex("([^\\s\\u{200B}]{8})"): m => m + sym.zws
+  it
+}
 #show raw.where(block: false): it => highlight(
   fill: rgb("#f6f8fa"),
   radius: 2pt,
