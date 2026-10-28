@@ -6,7 +6,7 @@ import { execFile } from 'child_process';
 
 interface PandocTypstSettings {
   exportFolder: string;
-  templateChoice: 'two-column' | 'single-column' | 'custom';
+  templateChoice: 'two-column' | 'single-column' | 'cheatsheet' | 'custom';
   pandocPath: string;
   typstPath: string;
   customTemplatePath: string;
@@ -20,7 +20,7 @@ const DEFAULT_SETTINGS: PandocTypstSettings = {
   customTemplatePath: ''
 };
 
-export function preprocessMarkdown(content: string, resolveVaultFile: (link: string) => string | null): string {
+export function preprocessMarkdown(content: string, resolveVaultFile: (link: string) => string | null = (p) => `/mock/vault/${p}`): string {
   let frontmatter = '';
   let body = content;
 
@@ -36,10 +36,18 @@ export function preprocessMarkdown(content: string, resolveVaultFile: (link: str
       });
 
       if (isLikelyYaml) {
-        // Sanitize any unquoted values starting with * or & in frontmatter
+        let hasTitle = false;
+        let fallbackName = '';
         const sanitizedLines = lines.map(line => {
-          return line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+          const sanitized = line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+          if (/^\s*title\s*:/i.test(sanitized)) hasTitle = true;
+          const fnMatch = sanitized.match(/^\s*(?:file[_-\s]?name)\s*:\s*(.+)$/i);
+          if (fnMatch) fallbackName = fnMatch[1].trim();
+          return sanitized;
         });
+        if (!hasTitle && fallbackName) {
+          sanitizedLines.push(`title: ${fallbackName}`);
+        }
         frontmatter = `---\n${sanitizedLines.join('\n')}\n---\n`;
         body = content.slice(3 + endIdx + 4);
       }
@@ -66,6 +74,9 @@ export function preprocessMarkdown(content: string, resolveVaultFile: (link: str
     return alias ? alias.trim() : linkPath.trim();
   });
 
+  // Convert HTML <u>...</u> to Pandoc native underline span
+  body = body.replace(/<u>([\s\S]*?)<\/u>/gi, '[$1]{.underline}');
+
   return frontmatter + body;
 }
 
@@ -91,6 +102,21 @@ export default class PandocTypstPlugin extends Plugin {
       }
     });
 
+    this.addCommand({
+      id: 'pandoc-typst-export-cheatsheet-pdf',
+      name: 'pandoc typst export cheatsheet pdf',
+      checkCallback: (checking: boolean) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.extension === 'md') {
+          if (!checking) {
+            this.exportCurrentNote(activeFile, 'cheatsheet');
+          }
+          return true;
+        }
+        return false;
+      }
+    });
+
     this.addSettingTab(new PandocTypstSettingTab(this.app, this));
   }
 
@@ -107,17 +133,20 @@ export default class PandocTypstPlugin extends Plugin {
     return adapter.basePath || (typeof adapter.getFullPath === 'function' ? adapter.getFullPath('') : '');
   }
 
-  private getTemplatePath(): string {
-    if (this.settings.templateChoice === 'custom' && this.settings.customTemplatePath?.trim()) {
+  private getTemplatePath(choiceOverride?: PandocTypstSettings['templateChoice']): string {
+    const choice = choiceOverride || this.settings.templateChoice;
+    if (choice === 'custom' && this.settings.customTemplatePath?.trim()) {
       const customPath = this.settings.customTemplatePath.trim();
       if (fs.existsSync(customPath)) {
         return customPath;
       }
     }
 
-    const templateFileName = this.settings.templateChoice === 'single-column'
+    const templateFileName = choice === 'single-column'
       ? 'template-single.typ'
-      : 'template.typ';
+      : choice === 'cheatsheet'
+        ? 'template-cheatsheet.typ'
+        : 'template.typ';
 
     const vaultBase = this.getVaultBasePath();
     const pluginTemplate = path.join(vaultBase, this.app.vault.configDir, 'plugins', this.manifest.id, templateFileName);
@@ -153,7 +182,7 @@ export default class PandocTypstPlugin extends Plugin {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   }
 
-  async exportCurrentNote(file: TFile) {
+  async exportCurrentNote(file: TFile, templateOverride?: PandocTypstSettings['templateChoice']) {
     new Notice(`Exporting "${file.basename}" to PDF...`);
 
     const vaultBase = this.getVaultBasePath();
@@ -169,12 +198,6 @@ export default class PandocTypstPlugin extends Plugin {
     const outputFileName = `${safeBaseName}_${fileTimestamp}.pdf`;
     const outputPdfVaultRel = path.join(exportFolder, outputFileName);
     const outputPdfFullPath = path.join(vaultBase, outputPdfVaultRel);
-    const templatePath = this.getTemplatePath();
-
-    if (!fs.existsSync(templatePath)) {
-      new Notice(`Typst template not found at: ${templatePath}`, 6000);
-      return;
-    }
 
     // Read and preprocess active note content
     const rawContent = await this.app.vault.read(file);
@@ -184,11 +207,24 @@ export default class PandocTypstPlugin extends Plugin {
     };
     const processedContent = preprocessMarkdown(rawContent, resolveVaultFile);
 
+    const fmMatch = processedContent.match(/^---\n([\s\S]*?)\n---\n/);
+    const fmText = fmMatch ? fmMatch[1] : '';
+    const yamlTemplateMatch = fmText.match(/^\s*template\s*:\s*['"]?(cheatsheet|single-column|two-column)['"]?\s*$/im);
+    const effectiveChoice = templateOverride || (yamlTemplateMatch ? yamlTemplateMatch[1].toLowerCase() as PandocTypstSettings['templateChoice'] : this.settings.templateChoice);
+    const templatePath = this.getTemplatePath(effectiveChoice);
+
+    if (!fs.existsSync(templatePath)) {
+      new Notice(`Typst template not found at: ${templatePath}`, 6000);
+      return;
+    }
+
     // Write to a temporary file
     const tempMdPath = path.join(os.tmpdir(), `obsidian-export-${Date.now()}-${file.basename}.md`);
     await fs.promises.writeFile(tempMdPath, processedContent, 'utf8');
 
     const noteDir = path.join(vaultBase, path.dirname(file.path));
+    const hasYamlTitle = /^\s*title\s*:/im.test(fmText);
+    const hasYamlDate = /^\s*date\s*:/im.test(fmText);
     const pandocArgs = [
       tempMdPath,
       '-o', outputPdfFullPath,
@@ -196,11 +232,16 @@ export default class PandocTypstPlugin extends Plugin {
       `--template=${templatePath}`,
       '--pdf-engine-opt=--root=/',
       `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`,
-      '--table-of-contents',
-      '--toc-depth=6',
-      `-V`, `title=${file.basename}`,
-      `-V`, `date=${this.formatTimestamp(new Date())}`
     ];
+    if (effectiveChoice !== 'cheatsheet') {
+      pandocArgs.push('--table-of-contents', '--toc-depth=6');
+    }
+    if (!hasYamlTitle) {
+      pandocArgs.push('-V', `title=${file.basename}`);
+    }
+    if (!hasYamlDate) {
+      pandocArgs.push('-V', `date=${this.formatTimestamp(new Date())}`);
+    }
 
     const env = this.getProcessEnv();
     const cwd = vaultBase && fs.existsSync(vaultBase) ? vaultBase : os.tmpdir();
@@ -244,9 +285,10 @@ class PandocTypstSettingTab extends PluginSettingTab {
       .addDropdown(dropdown => dropdown
         .addOption('two-column', 'Two Column (Academic)')
         .addOption('single-column', 'Single Column')
+        .addOption('cheatsheet', 'Cheatsheet (5-Column Landscape)')
         .addOption('custom', 'Custom Template File')
         .setValue(this.plugin.settings.templateChoice || 'two-column')
-        .onChange(async (value: 'two-column' | 'single-column' | 'custom') => {
+        .onChange(async (value: 'two-column' | 'single-column' | 'cheatsheet' | 'custom') => {
           this.plugin.settings.templateChoice = value;
           await this.plugin.saveSettings();
         }));

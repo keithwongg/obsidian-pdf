@@ -2,56 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const assert = require('assert');
-
-// 1. Test markdown preprocessing logic
-function preprocessMarkdown(content, resolveVaultPath = (p) => `/mock/vault/${p}`) {
-  let frontmatter = '';
-  let body = content;
-
-  // Check if note starts with YAML frontmatter
-  if (content.startsWith('---')) {
-    const endIdx = content.slice(3).indexOf('\n---');
-    if (endIdx !== -1) {
-      const candidate = content.slice(3, 3 + endIdx);
-      const lines = candidate.split('\n').filter(l => l.trim().length > 0);
-      const isLikelyYaml = lines.length === 0 || lines.every(l => {
-        const trimmed = l.trim();
-        return trimmed.startsWith('#') || /^[a-zA-Z0-9_-]+(\[[^\]]*\])?\s*:/.test(trimmed) || /^\s*-\s+/.test(l);
-      });
-
-      if (isLikelyYaml) {
-        // Sanitize any unquoted values starting with * or & in frontmatter
-        const sanitizedLines = lines.map(line => {
-          return line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
-        });
-        frontmatter = `---\n${sanitizedLines.join('\n')}\n---\n`;
-        body = content.slice(3 + endIdx + 4);
-      }
-    }
-  }
-
-  // Convert horizontal rules in body from --- to *** so Pandoc never treats them as YAML blocks
-  body = body.replace(/^([ \t]*-{3,}[ \t]*)$/gm, '***');
-
-  // Convert Obsidian image embeds ![[image.ext|size]] or ![[image.ext]] -> ![alt](path)
-  body = body.replace(/!\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
-    const resolvedPath = resolveVaultPath(linkPath.trim());
-    let altText = path.basename(linkPath.trim());
-    if (alias && !/^\d+(x\d+)?$/.test(alias.trim())) {
-      altText = alias.trim();
-    }
-    return `![${altText}](${resolvedPath})`;
-  });
-
-  // Convert Obsidian wikilinks [[link|alias]] -> alias or [[link]] -> link
-  body = body.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
-    return alias ? alias.trim() : linkPath.trim();
-  });
-
-  return frontmatter + body;
-}
-
-// Test assertions for preprocessing
+const Module = require('module');
+const origLoad = Module._load;
+Module._load = function(request, parent, isMain) {
+  if (request === 'obsidian') return { Plugin: class {}, PluginSettingTab: class {}, Setting: class {}, Notice: class {} };
+  return origLoad.apply(this, arguments);
+};
+const { preprocessMarkdown } = require('./main.js');
 console.log('Testing Markdown preprocessing...');
 const sampleInput = `
 # Title
@@ -66,6 +23,14 @@ Here is an image: ![screenshot.png](/mock/vault/screenshot.png) and sized: ![pho
 `;
 
 assert.strictEqual(preprocessMarkdown(sampleInput).trim(), expectedOutput.trim());
+
+// Test <u>...</u> underline conversion and YAML metadata extraction
+const underlineInput = `---\nfilename: My Custom Cheatsheet\ndate: 2026-10-28\ntemplate: cheatsheet\n---\nHere is <u>underlined text</u> and <u>second</u>.`;
+const processedUnderline = preprocessMarkdown(underlineInput);
+assert(processedUnderline.includes('[underlined text]{.underline}'), 'Should convert <u>...</u> to pandoc underline span');
+assert(processedUnderline.includes('[second]{.underline}'), 'Should convert multiple <u>...</u> tags');
+assert(processedUnderline.includes('title: My Custom Cheatsheet'), 'Should map filename/file_name in YAML to title if title is missing');
+
 
 // Test note with dividers and bold/italic that previously crashed Pandoc with YAML alias error
 const problematicNote = `
@@ -207,6 +172,45 @@ Check [[Internal Note]] and ![[image.png|300]].
     assert(singleStats.size > 1000, 'Single column PDF size should be > 1KB');
     console.log(`✓ End-to-end Pandoc + Typst single-column compile passed! Size: ${singleStats.size} bytes`);
     if (fs.existsSync(tempSingleOutput)) fs.unlinkSync(tempSingleOutput);
+
+    // Also test 5-column cheatsheet template
+    const templateCheatsheetPath = path.join(__dirname, 'template-cheatsheet.typ');
+    const tempCheatsheetOutput = path.join(__dirname, 'test_e2e_cheatsheet.pdf');
+    const cheatsheetMd = preprocessMarkdown(`---
+filename: Distributed Systems Cheatsheet
+date: 2026-10-28
+---
+# Section 1: Consensus
+Here is <u>underlined text</u> and **bold text**.
+* Bullet 1
+  * Nested bullet 1.1
+* Bullet 2
+
+## Raft Protocol
+Leader election and log replication.
+### Safety Properties
+State machine safety.
+
+---
+# Section 2: Storage
+New section color triggered by divider.
+## B-Trees vs LSM
+Write amplification vs read amplification.
+`);
+    const tempCheatsheetInput = path.join(__dirname, 'test_e2e_cheatsheet.md');
+    fs.writeFileSync(tempCheatsheetInput, cheatsheetMd, 'utf8');
+    execFileSync(pandocBin, [
+      tempCheatsheetInput,
+      '-o', tempCheatsheetOutput,
+      '--pdf-engine=/usr/local/bin/typst',
+      `--template=${templateCheatsheetPath}`
+    ]);
+    assert(fs.existsSync(tempCheatsheetOutput), 'Cheatsheet E2E PDF should exist');
+    const csStats = fs.statSync(tempCheatsheetOutput);
+    assert(csStats.size > 1000, 'Cheatsheet PDF size should be > 1KB');
+    console.log(`✓ End-to-end Pandoc + Typst 5-column cheatsheet compile passed! Size: ${csStats.size} bytes`);
+    if (fs.existsSync(tempCheatsheetInput)) fs.unlinkSync(tempCheatsheetInput);
+    if (fs.existsSync(tempCheatsheetOutput)) fs.unlinkSync(tempCheatsheetOutput);
   } finally {
     if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
     if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);

@@ -45,7 +45,7 @@ var DEFAULT_SETTINGS = {
   typstPath: "typst",
   customTemplatePath: ""
 };
-function preprocessMarkdown(content, resolveVaultFile) {
+function preprocessMarkdown(content, resolveVaultFile = (p) => `/mock/vault/${p}`) {
   let frontmatter = "";
   let body = content;
   if (content.startsWith("---")) {
@@ -58,9 +58,18 @@ function preprocessMarkdown(content, resolveVaultFile) {
         return trimmed.startsWith("#") || /^[a-zA-Z0-9_-]+(\[[^\]]*\])?\s*:/.test(trimmed) || /^\s*-\s+/.test(l);
       });
       if (isLikelyYaml) {
+        let hasTitle = false;
+        let fallbackName = "";
         const sanitizedLines = lines.map((line) => {
-          return line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+          const sanitized = line.replace(/^(\s*[\w.-]+\s*:\s*)(\*|\&)([^\s\n]+.*)$/, '$1"$2$3"');
+          if (/^\s*title\s*:/i.test(sanitized)) hasTitle = true;
+          const fnMatch = sanitized.match(/^\s*(?:file[_-\s]?name)\s*:\s*(.+)$/i);
+          if (fnMatch) fallbackName = fnMatch[1].trim();
+          return sanitized;
         });
+        if (!hasTitle && fallbackName) {
+          sanitizedLines.push(`title: ${fallbackName}`);
+        }
         frontmatter = `---
 ${sanitizedLines.join("\n")}
 ---
@@ -83,6 +92,7 @@ ${sanitizedLines.join("\n")}
   body = body.replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (match, linkPath, alias) => {
     return alias ? alias.trim() : linkPath.trim();
   });
+  body = body.replace(/<u>([\s\S]*?)<\/u>/gi, "[$1]{.underline}");
   return frontmatter + body;
 }
 var PandocTypstPlugin = class extends import_obsidian.Plugin {
@@ -102,6 +112,20 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
         return false;
       }
     });
+    this.addCommand({
+      id: "pandoc-typst-export-cheatsheet-pdf",
+      name: "pandoc typst export cheatsheet pdf",
+      checkCallback: (checking) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.extension === "md") {
+          if (!checking) {
+            this.exportCurrentNote(activeFile, "cheatsheet");
+          }
+          return true;
+        }
+        return false;
+      }
+    });
     this.addSettingTab(new PandocTypstSettingTab(this.app, this));
   }
   async loadSettings() {
@@ -114,14 +138,15 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     const adapter = this.app.vault.adapter;
     return adapter.basePath || (typeof adapter.getFullPath === "function" ? adapter.getFullPath("") : "");
   }
-  getTemplatePath() {
-    if (this.settings.templateChoice === "custom" && this.settings.customTemplatePath?.trim()) {
+  getTemplatePath(choiceOverride) {
+    const choice = choiceOverride || this.settings.templateChoice;
+    if (choice === "custom" && this.settings.customTemplatePath?.trim()) {
       const customPath = this.settings.customTemplatePath.trim();
       if (fs.existsSync(customPath)) {
         return customPath;
       }
     }
-    const templateFileName = this.settings.templateChoice === "single-column" ? "template-single.typ" : "template.typ";
+    const templateFileName = choice === "single-column" ? "template-single.typ" : choice === "cheatsheet" ? "template-cheatsheet.typ" : "template.typ";
     const vaultBase = this.getVaultBasePath();
     const pluginTemplate = path.join(vaultBase, this.app.vault.configDir, "plugins", this.manifest.id, templateFileName);
     if (fs.existsSync(pluginTemplate)) {
@@ -151,7 +176,7 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     const pad = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   }
-  async exportCurrentNote(file) {
+  async exportCurrentNote(file, templateOverride) {
     new import_obsidian.Notice(`Exporting "${file.basename}" to PDF...`);
     const vaultBase = this.getVaultBasePath();
     const exportFolder = this.settings.exportFolder.trim() || "exports";
@@ -163,20 +188,26 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
     const outputFileName = `${safeBaseName}_${fileTimestamp}.pdf`;
     const outputPdfVaultRel = path.join(exportFolder, outputFileName);
     const outputPdfFullPath = path.join(vaultBase, outputPdfVaultRel);
-    const templatePath = this.getTemplatePath();
-    if (!fs.existsSync(templatePath)) {
-      new import_obsidian.Notice(`Typst template not found at: ${templatePath}`, 6e3);
-      return;
-    }
     const rawContent = await this.app.vault.read(file);
     const resolveVaultFile = (link) => {
       const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
       return target ? path.join(vaultBase, target.path) : null;
     };
     const processedContent = preprocessMarkdown(rawContent, resolveVaultFile);
+    const fmMatch = processedContent.match(/^---\n([\s\S]*?)\n---\n/);
+    const fmText = fmMatch ? fmMatch[1] : "";
+    const yamlTemplateMatch = fmText.match(/^\s*template\s*:\s*['"]?(cheatsheet|single-column|two-column)['"]?\s*$/im);
+    const effectiveChoice = templateOverride || (yamlTemplateMatch ? yamlTemplateMatch[1].toLowerCase() : this.settings.templateChoice);
+    const templatePath = this.getTemplatePath(effectiveChoice);
+    if (!fs.existsSync(templatePath)) {
+      new import_obsidian.Notice(`Typst template not found at: ${templatePath}`, 6e3);
+      return;
+    }
     const tempMdPath = path.join(os.tmpdir(), `obsidian-export-${Date.now()}-${file.basename}.md`);
     await fs.promises.writeFile(tempMdPath, processedContent, "utf8");
     const noteDir = path.join(vaultBase, path.dirname(file.path));
+    const hasYamlTitle = /^\s*title\s*:/im.test(fmText);
+    const hasYamlDate = /^\s*date\s*:/im.test(fmText);
     const pandocArgs = [
       tempMdPath,
       "-o",
@@ -184,14 +215,17 @@ var PandocTypstPlugin = class extends import_obsidian.Plugin {
       `--pdf-engine=${this.settings.typstPath}`,
       `--template=${templatePath}`,
       "--pdf-engine-opt=--root=/",
-      `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`,
-      "--table-of-contents",
-      "--toc-depth=6",
-      `-V`,
-      `title=${file.basename}`,
-      `-V`,
-      `date=${this.formatTimestamp(/* @__PURE__ */ new Date())}`
+      `--resource-path=.${path.delimiter}${vaultBase}${path.delimiter}${noteDir}`
     ];
+    if (effectiveChoice !== "cheatsheet") {
+      pandocArgs.push("--table-of-contents", "--toc-depth=6");
+    }
+    if (!hasYamlTitle) {
+      pandocArgs.push("-V", `title=${file.basename}`);
+    }
+    if (!hasYamlDate) {
+      pandocArgs.push("-V", `date=${this.formatTimestamp(/* @__PURE__ */ new Date())}`);
+    }
     const env = this.getProcessEnv();
     const cwd = vaultBase && fs.existsSync(vaultBase) ? vaultBase : os.tmpdir();
     (0, import_child_process.execFile)(this.settings.pandocPath, pandocArgs, { env, cwd }, async (error, stdout, stderr) => {
@@ -218,7 +252,7 @@ var PandocTypstSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "Pandoc Typst PDF Export Settings" });
-    new import_obsidian.Setting(containerEl).setName("Template Layout").setDesc("Select the PDF template layout to use for exports").addDropdown((dropdown) => dropdown.addOption("two-column", "Two Column (Academic)").addOption("single-column", "Single Column").addOption("custom", "Custom Template File").setValue(this.plugin.settings.templateChoice || "two-column").onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("Template Layout").setDesc("Select the PDF template layout to use for exports").addDropdown((dropdown) => dropdown.addOption("two-column", "Two Column (Academic)").addOption("single-column", "Single Column").addOption("cheatsheet", "Cheatsheet (5-Column Landscape)").addOption("custom", "Custom Template File").setValue(this.plugin.settings.templateChoice || "two-column").onChange(async (value) => {
       this.plugin.settings.templateChoice = value;
       await this.plugin.saveSettings();
     }));
