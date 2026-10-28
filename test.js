@@ -178,7 +178,8 @@ Check [[Internal Note]] and ![[image.png|300]].
     const csTemplateText = fs.readFileSync(templateCheatsheetPath, 'utf8');
     assert(csTemplateText.includes('size: 6pt'), 'Cheatsheet default body text should be 6pt');
     assert(csTemplateText.includes('justify: true'), 'Cheatsheet body text should be justified');
-    assert(csTemplateText.includes('size: 8pt, weight: "bold", fill: white'), 'Cheatsheet heading titles should be 8pt');
+    assert(csTemplateText.includes('size: 8pt, weight: "bold", fill: white)[#it.body]'), 'Cheatsheet heading titles should be 8pt without underline');
+    assert(!csTemplateText.includes('#underline'), 'Cheatsheet headings should not be underlined');
     assert(csTemplateText.includes('align(center)'), 'Cheatsheet headings should be center-aligned');
     const tempCheatsheetOutput = path.join(__dirname, 'test_e2e_cheatsheet.pdf');
     const cheatsheetMd = preprocessMarkdown(`---
