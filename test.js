@@ -178,14 +178,23 @@ Check [[Internal Note]] and ![[image.png|300]].
     const csTemplateText = fs.readFileSync(templateCheatsheetPath, 'utf8');
     assert(csTemplateText.includes('size: 6pt'), 'Cheatsheet default body text should be 6pt');
     assert(csTemplateText.includes('justify: true'), 'Cheatsheet body text should be justified');
-    assert(csTemplateText.includes('size: 6pt, weight: "bold", fill: white)[#it.body]'), 'Cheatsheet heading titles should be 6pt without underline');
+    assert(csTemplateText.includes('size: 6pt, weight: "bold", fill: white)[#body]'), 'Cheatsheet heading titles should be 6pt without underline');
     assert(!csTemplateText.includes('#underline'), 'Cheatsheet headings should not be underlined');
     assert(csTemplateText.includes('align(center)'), 'Cheatsheet headings should be center-aligned');
     assert(csTemplateText.includes('#show figure.caption: none'), 'Cheatsheet image captions should be hidden');
     assert(csTemplateText.includes('#show figure.where(kind: table): set block(breakable: true)'), 'Cheatsheet table figures should be breakable across columns');
     assert(csTemplateText.includes('balance-columns'), 'Cheatsheet should balance and wrap table columns like 2-column template');
-    assert(csTemplateText.includes('sticky: false'), 'Cheatsheet headings should not stick to large unbreakable blocks');
+    assert(csTemplateText.includes('calc.min(page.width, page.height)'), 'Cheatsheet should use landscape height (calc.min(page.width, page.height)) to calculate avail-h');
+    assert(csTemplateText.includes('if not appendix-items.get().any(x => x.id == img-id)'), 'Cheatsheet should deduplicate appendix images');
+    assert(csTemplateText.includes('x: $if(margin-x)$$margin-x$$else$0.5cm$endif$'), 'Cheatsheet x margin should be 0.5cm');
+    assert(csTemplateText.includes('top: $if(margin-top)$$margin-top$$else$0.7cm$endif$'), 'Cheatsheet top margin should be 0.7cm');
+    assert(csTemplateText.includes('bottom: $if(margin-bottom)$$margin-bottom$$else$0.5cm$endif$'), 'Cheatsheet bottom margin should be 0.5cm');
+    assert(csTemplateText.includes('columns: 3,'), 'Cheatsheet should have a 3-column appendix page for images');
+    assert(csTemplateText.includes('| Appendix'), 'Appendix pages should append | Appendix in top page header');
+    assert(!csTemplateText.includes('render-heading-banner([Appendix]'), 'Appendix should not render a body header banner');
     const tempCheatsheetOutput = path.join(__dirname, 'test_e2e_cheatsheet.pdf');
+    const tempSvgPath = path.join(__dirname, 'test_diagram.svg');
+    fs.writeFileSync(tempSvgPath, `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="#cccccc"/></svg>`, 'utf8');
     const cheatsheetMd = preprocessMarkdown(`---
 filename: Distributed Systems Cheatsheet
 date: 2026-10-28
@@ -203,8 +212,10 @@ Here is <u>underlined text</u> and **bold text**.
 
 ## Raft Protocol
 Leader election and log replication.
+![diagram1](${tempSvgPath})
 ### Safety Properties
 State machine safety.
+![diagram2](${tempSvgPath})
 
 ---
 # Section 2: Storage
@@ -218,12 +229,14 @@ Write amplification vs read amplification.
       tempCheatsheetInput,
       '-o', tempCheatsheetOutput,
       '--pdf-engine=/usr/local/bin/typst',
+      '--pdf-engine-opt=--root=/',
       `--template=${templateCheatsheetPath}`
     ]);
     assert(fs.existsSync(tempCheatsheetOutput), 'Cheatsheet E2E PDF should exist');
     const csStats = fs.statSync(tempCheatsheetOutput);
     assert(csStats.size > 1000, 'Cheatsheet PDF size should be > 1KB');
     console.log(`✓ End-to-end Pandoc + Typst 5-column cheatsheet compile passed! Size: ${csStats.size} bytes`);
+    if (fs.existsSync(tempSvgPath)) fs.unlinkSync(tempSvgPath);
     if (fs.existsSync(tempCheatsheetInput)) fs.unlinkSync(tempCheatsheetInput);
     if (fs.existsSync(tempCheatsheetOutput)) fs.unlinkSync(tempCheatsheetOutput);
   } finally {

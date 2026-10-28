@@ -1,6 +1,10 @@
 // Typst 5-Column Landscape Cheatsheet Template for Pandoc & Obsidian
 
 #let section-idx = state("section-idx", 0)
+#let heading-counter = state("heading-counter", 0)
+#let active-headings = state("active-headings", (:))
+#let appendix-items = state("appendix-items", ())
+#let in-appendix = state("in-appendix", false)
 
 #let palette = (
   rgb("#1e3a5f"), // Navy
@@ -12,15 +16,16 @@
   rgb("#2b4560"), // Slate Blue
   rgb("#6b1d4a"), // Burgundy
 )
+#let appendix-gray = rgb("#333333")
 
 #set page(
   paper: "$if(papersize)$$papersize$$else$a4$endif$",
   flipped: true,
   columns: 5,
   margin: (
-    x: $if(margin-x)$$margin-x$$else$0.3cm$endif$,
-    top: $if(margin-top)$$margin-top$$else$0.6cm$endif$,
-    bottom: $if(margin-bottom)$$margin-bottom$$else$0.3cm$endif$
+    x: $if(margin-x)$$margin-x$$else$0.5cm$endif$,
+    top: $if(margin-top)$$margin-top$$else$0.7cm$endif$,
+    bottom: $if(margin-bottom)$$margin-bottom$$else$0.5cm$endif$
   ),
   fill: rgb("#ffffff"),
   header-ascent: 20%,
@@ -54,10 +59,8 @@
 #let divider() = horizontalRule
 
 // Colored section & sub-heading banners (6pt bold white text, centered, progressively lighter per level)
-#show heading: it => context {
-  let idx = section-idx.get()
-  let base-color = palette.at(calc.rem(idx, palette.len()))
-  let lighten-pct = calc.min((it.level - 1) * 10%, 40%)
+#let render-heading-banner(body, level, base-color) = {
+  let lighten-pct = calc.min((level - 1) * 10%, 40%)
   let bg = color.mix((base-color, 100% - lighten-pct), (white, lighten-pct))
   block(
     fill: bg,
@@ -67,13 +70,62 @@
     above: 3pt,
     below: 2pt,
     breakable: false,
-    sticky: false,
-    align(center)[#set par(justify: false); #text(size: 6pt, weight: "bold", fill: white)[#it.body]]
+    sticky: true,
+    align(center)[#set par(justify: false); #text(size: 6pt, weight: "bold", fill: white)[#body]]
   )
 }
 
+#show heading: it => context {
+  if not in-appendix.get() {
+    let sec = section-idx.get()
+    let hid = heading-counter.get()
+    heading-counter.update(n => n + 1)
+    active-headings.update(st => {
+      let next = st
+      next.insert(str(it.level), (level: it.level, body: it.body, sec: sec, id: hid))
+      for lv in range(it.level + 1, 7) {
+        let _ = next.remove(str(lv), default: none)
+      }
+      next
+    })
+    let base-color = palette.at(calc.rem(sec, palette.len()))
+    render-heading-banner(it.body, it.level, base-color)
+  } else {
+    render-heading-banner(it.body, it.level, appendix-gray)
+  }
+}
+
 #show image: set image(width: 100%, fit: "contain")
-#show figure: set block(inset: 0pt, above: 2pt, below: 2pt)
+#show image: it => [
+  #block(height: 0pt, width: 0pt, inset: 0pt, above: 0pt, below: 0pt)[#metadata("anchor") <img-anchor>]
+  #context {
+    if not in-appendix.get() {
+      let st = active-headings.get()
+      let anchors = query(selector(<img-anchor>).before(here()))
+      let pos = if anchors.len() > 0 { anchors.last().location().position() } else { here().position() }
+      let img-id = repr(pos)
+      if not appendix-items.get().any(x => x.id == img-id) {
+        appendix-items.update(items => {
+          let next = items
+          next.push((id: img-id, headings: st, img: it))
+          next
+        })
+      }
+      let avail-h = calc.min(page.width, page.height) - 0.5cm.to-absolute() - pos.y - 4pt
+      layout(size => {
+        let dim = measure(block(width: size.width, it))
+        if dim.height > avail-h and avail-h > 10pt {
+          block(width: 100%, height: avail-h, align(center, it))
+        } else {
+          it
+        }
+      })
+    } else {
+      it
+    }
+  }
+]
+#show figure: set block(inset: 0pt, above: 2pt, below: 2pt, breakable: true)
 #show figure.where(kind: table): set block(breakable: true)
 #show figure.caption: none
 
@@ -120,14 +172,18 @@
 
 #show table: it => {
   let new-cols = balance-columns(it.columns)
-  if new-cols != it.columns {
+  let has-header = it.children.any(c => c.func() == table.header)
+  if new-cols != it.columns or has-header {
     let fields = it.fields()
     let _ = fields.remove("columns")
     let _ = fields.remove("children")
+    let _ = fields.remove("align", default: none)
+    let children = it.children.map(c => if c.func() == table.header { c.children } else { (c,) }).flatten()
     table(
       columns: new-cols,
+      align: left,
       ..fields,
-      ..it.children
+      ..children
     )
   } else {
     it
@@ -143,9 +199,11 @@
 }
 #show figure.where(kind: table): set align(left)
 #show figure.where(kind: table): it => {
-  set align(left)
-  show align.where(alignment: center): a => align(left)[#a.body]
-  it
+  if it.body.func() == align {
+    it.body.body
+  } else {
+    it.body
+  }
 }
 
 // Compact code blocks
@@ -182,3 +240,38 @@
 )
 
 $body$
+
+#context {
+  let items = appendix-items.get()
+  if items.len() > 0 {
+    page(
+      columns: 3,
+      header: context {
+        set text(size: 8pt, fill: rgb("#333333"), weight: "bold")
+        grid(
+          columns: (1fr, auto),
+          align: (left + horizon, right + horizon),
+          [$if(title)$$title$$endif$$if(date)$ | $date$$endif$ | Appendix],
+          [#counter(page).display("1")]
+        )
+      }
+    )[
+      #in-appendix.update(_ => true)
+      #let shown = ()
+      #for item in items {
+        for lv in range(1, 7) {
+          let k = str(lv)
+          if k in item.headings {
+            let h = item.headings.at(k)
+            if not shown.contains(h.id) {
+              shown.push(h.id)
+              let base-color = palette.at(calc.rem(h.sec, palette.len()))
+              render-heading-banner(h.body, h.level, base-color)
+            }
+          }
+        }
+        block(width: 100%, above: 2pt, below: 4pt, item.img)
+      }
+    ]
+  }
+}
