@@ -67,12 +67,14 @@
     above: 3pt,
     below: 2pt,
     breakable: false,
+    sticky: false,
     align(center)[#set par(justify: false); #text(size: 6pt, weight: "bold", fill: white)[#it.body]]
   )
 }
 
 #show image: set image(width: 100%, fit: "contain")
 #show figure: set block(inset: 0pt, above: 2pt, below: 2pt)
+#show figure.where(kind: table): set block(breakable: true)
 #show figure.caption: none
 
 // Compact tables for narrow columns

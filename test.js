@@ -182,6 +182,8 @@ Check [[Internal Note]] and ![[image.png|300]].
     assert(!csTemplateText.includes('#underline'), 'Cheatsheet headings should not be underlined');
     assert(csTemplateText.includes('align(center)'), 'Cheatsheet headings should be center-aligned');
     assert(csTemplateText.includes('#show figure.caption: none'), 'Cheatsheet image captions should be hidden');
+    assert(csTemplateText.includes('#show figure.where(kind: table): set block(breakable: true)'), 'Cheatsheet table figures should be breakable across columns');
+    assert(csTemplateText.includes('sticky: false'), 'Cheatsheet headings should not stick to large unbreakable blocks');
     const tempCheatsheetOutput = path.join(__dirname, 'test_e2e_cheatsheet.pdf');
     const cheatsheetMd = preprocessMarkdown(`---
 filename: Distributed Systems Cheatsheet
