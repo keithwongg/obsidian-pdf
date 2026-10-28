@@ -183,6 +183,7 @@ Check [[Internal Note]] and ![[image.png|300]].
     assert(csTemplateText.includes('align(center)'), 'Cheatsheet headings should be center-aligned');
     assert(csTemplateText.includes('#show figure.caption: none'), 'Cheatsheet image captions should be hidden');
     assert(csTemplateText.includes('#show figure.where(kind: table): set block(breakable: true)'), 'Cheatsheet table figures should be breakable across columns');
+    assert(csTemplateText.includes('balance-columns'), 'Cheatsheet should balance and wrap table columns like 2-column template');
     assert(csTemplateText.includes('sticky: false'), 'Cheatsheet headings should not stick to large unbreakable blocks');
     const tempCheatsheetOutput = path.join(__dirname, 'test_e2e_cheatsheet.pdf');
     const cheatsheetMd = preprocessMarkdown(`---
@@ -194,6 +195,11 @@ Here is <u>underlined text</u> and **bold text**.
 * Bullet 1
   * Nested bullet 1.1
 * Bullet 2
+
+| Aspect | Raft | Paxos |
+| --- | --- | --- |
+| Leader | Strong leader election per term | Multi-Paxos or leaderless Basic Paxos |
+| Logs | Contiguous log entries | Independent consensus slots |
 
 ## Raft Protocol
 Leader election and log replication.

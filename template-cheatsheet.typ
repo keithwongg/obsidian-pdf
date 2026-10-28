@@ -77,17 +77,74 @@
 #show figure.where(kind: table): set block(breakable: true)
 #show figure.caption: none
 
-// Compact tables for narrow columns
+// Compact tables for narrow columns (matched with 2-col report template)
 #set table(
   stroke: 0.4pt + rgb("#d0d7de"),
   inset: (x: 2pt, y: 1.5pt),
   align: left
 )
+#let balance-columns(cols) = {
+  if type(cols) == int {
+    (1fr,) * cols
+  } else if type(cols) == array {
+    let n = cols.len()
+    if n == 0 { cols }
+    else if cols.all(c => c == auto) {
+      (1fr,) * n
+    } else {
+      let is-ratio-like = cols.all(c => type(c) == ratio or type(c) == relative)
+      if is-ratio-like {
+        let ratios = cols.map(c => if type(c) == relative { c.ratio } else { c })
+        let min-ratio = (0.7 / n) * 100%
+        let below = ratios.filter(r => r < min-ratio)
+        if below.len() > 0 and below.len() < n {
+          let fixed-total = below.len() * min-ratio
+          let remaining = 100% - fixed-total
+          let above = ratios.filter(r => r >= min-ratio)
+          let above-sum = above.sum()
+          ratios.map(r => {
+            if r < min-ratio { min-ratio }
+            else { (r / above-sum) * remaining }
+          })
+        } else {
+          cols
+        }
+      } else {
+        cols
+      }
+    }
+  } else {
+    cols
+  }
+}
+
+#show table: it => {
+  let new-cols = balance-columns(it.columns)
+  if new-cols != it.columns {
+    let fields = it.fields()
+    let _ = fields.remove("columns")
+    let _ = fields.remove("children")
+    table(
+      columns: new-cols,
+      ..fields,
+      ..it.children
+    )
+  } else {
+    it
+  }
+}
 #show table.cell: it => {
   set align(left)
+  set par(justify: false)
   set text(size: 5.5pt)
   show regex("([_./\\\\:\\-@?&=+~%,;()\\[\\]{}|])"): m => m + sym.zws
   show regex("([^\\s\\u{200B}]{8})"): m => m + sym.zws
+  it
+}
+#show figure.where(kind: table): set align(left)
+#show figure.where(kind: table): it => {
+  set align(left)
+  show align.where(alignment: center): a => align(left)[#a.body]
   it
 }
 
