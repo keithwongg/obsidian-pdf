@@ -53,7 +53,7 @@
 #let horizontalRule = section-idx.update(n => n + 1)
 #let divider() = horizontalRule
 
-// Colored section & sub-heading banners (8pt bold white text, centered, progressively lighter per level)
+// Colored section & sub-heading banners (6pt bold white text, centered, progressively lighter per level)
 #show heading: it => context {
   let idx = section-idx.get()
   let base-color = palette.at(calc.rem(idx, palette.len()))
@@ -67,13 +67,13 @@
     above: 3pt,
     below: 2pt,
     breakable: false,
-    align(center)[#set par(justify: false); #text(size: 8pt, weight: "bold", fill: white)[#it.body]]
+    align(center)[#set par(justify: false); #text(size: 6pt, weight: "bold", fill: white)[#it.body]]
   )
 }
 
 #show image: set image(width: 100%, fit: "contain")
 #show figure: set block(inset: 0pt, above: 2pt, below: 2pt)
-#show figure.caption: set text(size: 5.5pt)
+#show figure.caption: none
 
 // Compact tables for narrow columns
 #set table(
