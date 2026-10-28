@@ -175,6 +175,11 @@ Check [[Internal Note]] and ![[image.png|300]].
 
     // Also test 5-column cheatsheet template
     const templateCheatsheetPath = path.join(__dirname, 'template-cheatsheet.typ');
+    const csTemplateText = fs.readFileSync(templateCheatsheetPath, 'utf8');
+    assert(csTemplateText.includes('size: 6pt'), 'Cheatsheet default body text should be 6pt');
+    assert(csTemplateText.includes('justify: true'), 'Cheatsheet body text should be justified');
+    assert(csTemplateText.includes('size: 8pt, weight: "bold", fill: white'), 'Cheatsheet heading titles should be 8pt');
+    assert(csTemplateText.includes('align(center)'), 'Cheatsheet headings should be center-aligned');
     const tempCheatsheetOutput = path.join(__dirname, 'test_e2e_cheatsheet.pdf');
     const cheatsheetMd = preprocessMarkdown(`---
 filename: Distributed Systems Cheatsheet

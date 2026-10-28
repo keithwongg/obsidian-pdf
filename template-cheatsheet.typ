@@ -38,13 +38,13 @@
 #set columns(gutter: 2pt)
 
 #set text(
-  size: 8pt,
+  size: 6pt,
   fill: rgb("#000000"),
   font: ("Helvetica Neue", "Arial", "Times New Roman", "New Computer Modern"),
   lang: "$if(lang)$$lang$$else$en$endif$"
 )
 
-#set par(justify: false, leading: 0.25em, spacing: 0.35em)
+#set par(justify: true, leading: 0.25em, spacing: 0.35em)
 #set list(spacing: 1pt, indent: 1pt, body-indent: 2pt)
 #set enum(spacing: 1pt, indent: 1pt, body-indent: 2pt)
 #set terms(spacing: 1pt, hanging-indent: 4pt)
@@ -53,7 +53,7 @@
 #let horizontalRule = section-idx.update(n => n + 1)
 #let divider() = horizontalRule
 
-// Colored section & sub-heading banners (10pt bold + underlined white text, progressively lighter per level)
+// Colored section & sub-heading banners (8pt bold + underlined white text, centered, progressively lighter per level)
 #show heading: it => context {
   let idx = section-idx.get()
   let base-color = palette.at(calc.rem(idx, palette.len()))
@@ -67,13 +67,13 @@
     above: 3pt,
     below: 2pt,
     breakable: false,
-    text(size: 10pt, weight: "bold", fill: white)[#underline(stroke: 0.6pt + white)[#it.body]]
+    align(center)[#set par(justify: false); #text(size: 8pt, weight: "bold", fill: white)[#underline(stroke: 0.6pt + white)[#it.body]]]
   )
 }
 
 #show image: set image(width: 100%, fit: "contain")
 #show figure: set block(inset: 0pt, above: 2pt, below: 2pt)
-#show figure.caption: set text(size: 7pt)
+#show figure.caption: set text(size: 5.5pt)
 
 // Compact tables for narrow columns
 #set table(
@@ -83,14 +83,14 @@
 )
 #show table.cell: it => {
   set align(left)
-  set text(size: 7pt)
+  set text(size: 5.5pt)
   show regex("([_./\\\\:\\-@?&=+~%,;()\\[\\]{}|])"): m => m + sym.zws
   show regex("([^\\s\\u{200B}]{8})"): m => m + sym.zws
   it
 }
 
 // Compact code blocks
-#show raw: set text(font: ("DejaVu Sans Mono", "Courier New"), size: 7pt)
+#show raw: set text(font: ("DejaVu Sans Mono", "Courier New"), size: 5.5pt)
 #show raw: it => {
   show regex("([_./\\\\:\\-@?&=+~%,;()\\[\\]{}|])"): m => m + sym.zws
   show regex("([^\\s\\u{200B}]{8})"): m => m + sym.zws
