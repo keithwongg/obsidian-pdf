@@ -90,3 +90,17 @@ Build from source:
 ```bash
 npm run build
 ```
+
+## Load plugin in obsidian
+
+Only need these files:
+
+- main.js — the compiled plugin code
+- manifest.json — plugin metadata required by Obsidian
+- template.typ — default two-column academic template
+- template-single.typ — single-column template
+- template-cheatsheet.typ — 5-column landscape cheatsheet template
+
+```
+npm run build && cp main.js manifest.json template*.typ "/path/to/your/vault/.obsidian/plugins/pandoc-typst-export-pdf/"
+```
